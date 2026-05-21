@@ -11,12 +11,12 @@ use Illuminate\Http\Request;
 class CartController extends Controller
 {
     /**
-     * Mengambil data keranjang milik user
+     * Mengambil data keranjang milik user yang sedang login
      */
     public function index()
     {
-        // Ganti dengan auth()->id() jika sudah menggunakan sistem login
-        $userId = 1; 
+        // Mengambil ID user secara dinamis dari token Bearer yang dikirim Vue
+        $userId = auth()->id(); 
 
         return Cart::where('user_id', $userId)
             ->with('items.product')
@@ -25,7 +25,7 @@ class CartController extends Controller
     }
 
     /**
-     * Menambah produk ke dalam keranjang
+     * Menambah produk ke dalam keranjang user yang sedang login
      */
     public function store(Request $request)
     {
@@ -35,14 +35,14 @@ class CartController extends Controller
 
         $product = Product::findOrFail($request->product_id);
 
-        // 1. Cek jika stok produk sudah habis total
         if ($product->stock <= 0) {
             return response()->json([
                 'message' => 'Maaf, stok produk ini sudah habis.'
             ], 400);
         }
 
-        $cart = Cart::firstOrCreate(['user_id' => 1]);
+        // Membuat atau mencari cart berdasarkan ID user yang sedang login
+        $cart = Cart::firstOrCreate(['user_id' => auth()->id()]);
 
         $item = CartItem::where([
             'cart_id' => $cart->id,
@@ -50,7 +50,6 @@ class CartController extends Controller
         ])->first();
 
         if ($item) {
-            // 2. Cek jika penambahan quantity akan melampaui stok
             if (($item->quantity + 1) > $product->stock) {
                 return response()->json([
                     'message' => "Tidak bisa menambah barang. Stok tersedia hanya {$product->stock} unit."
@@ -58,7 +57,6 @@ class CartController extends Controller
             }
             $item->increment('quantity');
         } else {
-            // Jika item baru, quantity default adalah 1
             CartItem::create([
                 'cart_id' => $cart->id,
                 'product_id' => $product->id,
@@ -86,7 +84,6 @@ class CartController extends Controller
             return response()->json(['message' => 'Item tidak ditemukan'], 404);
         }
 
-        // 3. Validasi stok saat update quantity (misal input manual)
         if ($request->quantity > $item->product->stock) {
             return response()->json([
                 'message' => "Jumlah melampaui stok. Hanya tersedia {$item->product->stock} unit."
@@ -118,12 +115,11 @@ class CartController extends Controller
     }
 
     /**
-     * Mengosongkan seluruh isi keranjang
+     * Mengosongkan seluruh isi keranjang milik user yang aktif
      */
     public function clear()
     {
-        $userId = 1;
-        $cart = Cart::where('user_id', $userId)->first();
+        $cart = Cart::where('user_id', auth()->id())->first();
 
         if ($cart) {
             $cart->items()->delete();

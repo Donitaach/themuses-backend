@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 
+/*
+|--------------------------------------------------------------------------
+| CONTROLLERS IMPORT
+|--------------------------------------------------------------------------
+*/
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\AuthController;
@@ -12,184 +17,87 @@ use App\Http\Controllers\XenditWebhookController;
 
 /*
 |--------------------------------------------------------------------------
-| PRODUCT ROUTES
-|--------------------------------------------------------------------------
-*/
-
-Route::apiResource(
-    'products',
-    ProductController::class
-);
-
-/*
-|--------------------------------------------------------------------------
-| CART ROUTES
-|--------------------------------------------------------------------------
-*/
-
-Route::prefix('cart')->group(function () {
-
-    /*
-    |--------------------------------------------------------------------------
-    | GET CART
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get(
-        '/',
-        [CartController::class, 'index']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | ADD TO CART
-    |--------------------------------------------------------------------------
-    */
-
-    Route::post(
-        '/',
-        [CartController::class, 'store']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | CLEAR CART
-    |--------------------------------------------------------------------------
-    */
-
-    Route::delete(
-        '/clear',
-        [CartController::class, 'clear']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | UPDATE QUANTITY
-    |--------------------------------------------------------------------------
-    */
-
-    Route::put(
-        '/{id}',
-        [CartController::class, 'update']
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | DELETE ITEM
-    |--------------------------------------------------------------------------
-    */
-
-    Route::delete(
-        '/{id}',
-        [CartController::class, 'destroy']
-    );
-});
-
-/*
-|--------------------------------------------------------------------------
 | PUBLIC ROUTES
 |--------------------------------------------------------------------------
-*/
-
-/*
-|--------------------------------------------------------------------------
-| REGISTER
-|--------------------------------------------------------------------------
-*/
-
-Route::post(
-    '/register',
-    [AuthController::class, 'register']
-);
-
-/*
-|--------------------------------------------------------------------------
-| LOGIN
-|--------------------------------------------------------------------------
-*/
-
-Route::post(
-    '/login',
-    [AuthController::class, 'login']
-);
-
-/*
-|--------------------------------------------------------------------------
-| XENDIT WEBHOOK
-|--------------------------------------------------------------------------
-|
-| WAJIB PUBLIC
-| JANGAN MASUK AUTH
+| Rute-rute di bawah ini dapat diakses oleh siapa saja tanpa perlu 
+| melampirkan token login (Bearer Token).
 |
 */
 
-Route::post(
+// Melihat daftar produk dan detail produk
+Route::apiResource('products', ProductController::class);
 
-    '/xendit/webhook',
-
-    [XenditWebhookController::class, 'handle']
-);
+// Autentikasi pendaftaran akun baru & masuk log
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
 
 /*
 |--------------------------------------------------------------------------
-| PRIVATE ROUTES
+| XENDIT WEBHOOK (WAJIB PUBLIC)
 |--------------------------------------------------------------------------
-|
-| Route yang membutuhkan login
+| Jangan pernah memasukkan rute ini ke dalam middleware auth:sanctum 
+| karena server Xendit tidak memiliki akses token akun user kita.
 |
 */
+Route::post('/xendit/webhook', [XenditWebhookController::class, 'handle']);
 
-Route::middleware('auth:sanctum')
-->group(function () {
 
-    /*
-    |--------------------------------------------------------------------------
-    | PROFILE
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get(
-        '/profile',
-        [AuthController::class, 'profile']
-    );
-
-    Route::put(
-        '/profile',
-        [AuthController::class, 'updateProfile']
-    );
+/*
+|--------------------------------------------------------------------------
+| PRIVATE ROUTES (Membentengi Akses Menggunakan Sanctum)
+|--------------------------------------------------------------------------
+| Seluruh rute di dalam grup ini membutuhkan header:
+| Authorization: Bearer <token_kamu>
+| Jika tidak menyertakannya, Laravel akan otomatis menolak request (401).
+|
+*/
+Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | LOGOUT
+    | CART ROUTES (Sistem Keranjang Per-User)
     |--------------------------------------------------------------------------
     */
-
-    Route::post(
-        '/logout',
-        [AuthController::class, 'logout']
-    );
+    Route::prefix('cart')->group(function () {
+        
+        // Mengambil data keranjang milik user yang sedang aktif login
+        Route::get('/', [CartController::class, 'index']);
+        
+        // Menambahkan produk ke dalam keranjang belanja
+        Route::post('/', [CartController::class, 'store']);
+        
+        // Mengosongkan seluruh isi keranjang belanja
+        Route::delete('/clear', [CartController::class, 'clear']);
+        
+        // Memperbarui jumlah item (quantity) tertentu di keranjang
+        Route::put('/{id}', [CartController::class, 'update']);
+        
+        // Menghapus satu item produk dari keranjang belanja
+        Route::delete('/{id}', [CartController::class, 'destroy']);
+    });
 
     /*
     |--------------------------------------------------------------------------
-    | CHECKOUT
+    | USER PROFILE ROUTES
     |--------------------------------------------------------------------------
     */
-
-    Route::post(
-        '/checkout',
-        [CheckoutController::class, 'store']
-    );
+    // Mengambil data informasi profil user aktif
+    Route::get('/profile', [AuthController::class, 'profile']);
+    
+    // Memperbarui informasi data profil user aktif
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
+    
+    // Menghapus sesi login (token) dari database backend
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     /*
     |--------------------------------------------------------------------------
-    | ORDERS HISTORY
+    | TRANSACTIONS & ORDERS ROUTES
     |--------------------------------------------------------------------------
     */
-
-    Route::get(
-
-        '/orders',
-
-        [OrderController::class, 'index']
-    );
+    // Membuat transaksi pembayaran baru (Checkout)
+    Route::post('/checkout', [CheckoutController::class, 'store']);
+    
+    // Mengambil riwayat pembelian (Order History) milik user aktif
+    Route::get('/orders', [OrderController::class, 'index']);
 });
